@@ -56,11 +56,13 @@ nav {
   background: rgba(255, 255, 255, 0.03);
 }
 
+.card a {
+  display: block;
+  padding: 0.5rem 0;
+  font-size: 1.15rem;
+}
+
 .card h2 {
   margin: 0 0 0.5rem;
   font-size: 1.25rem;
-}
-
-.small {
-  font-size: 0.95rem;
 }
