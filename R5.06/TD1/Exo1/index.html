@@ -9,8 +9,44 @@
 <body>
   <div class="card">
     <h1>TD 1 - Exo 1</h1>
-    <h2>Document de travail</h2>
-    <p>Ajoutez ici votre document ou votre solution.</p>
+
+      <div id="affichage-position"></div>
+      
+      <script>
+      var id, options;
+
+      options = {
+        enableHighAccuracy: true,
+        timeout: 5000,
+        maximumAge: 0,
+      };
+
+      function success(pos) {
+        var crd = pos.coords;
+        var affichage = document.getElementById("affichage-position");
+        
+        var dateMesure = new Date(pos.timestamp).toLocaleString('fr-FR');
+
+        var altitude = crd.altitude !== null ? crd.altitude + " mètres" : "Non disponible";
+        var vitesse = crd.speed !== null ? crd.speed + " m/s" : "Non disponible";
+
+        affichage.innerHTML = `
+          Longitude : ${crd.longitude} <br>
+          Latitude : ${crd.latitude} <br>
+          Altitude : ${altitude} <br>
+          Précision : ${crd.accuracy} mètres <br>
+          Vitesse : ${vitesse} <br>
+          Date : ${dateMesure}
+        `;
+      }
+
+      function error(err) {
+        document.getElementById("affichage-position").innerHTML = `ERREUR (${err.code}): ${err.message}`;
+      }
+
+      navigator.geolocation.getCurrentPosition(success, error, options);
+      id = navigator.geolocation.watchPosition(success, error, options);
+      </script>
   </div>
   <nav>
     <a href="../../../index.html">Accueil</a>
