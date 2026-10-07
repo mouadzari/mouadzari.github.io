@@ -42,11 +42,11 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
       document.body.appendChild(renderer.domElement);
 
-      const light = new THREE.DirectionalLight(0xffffff, 2);
+      const light = new THREE.DirectionalLight(0xffffff, 5);
       light.position.set(2, 2, 5);
       scene.add(light);
       
-      const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+      const ambientLight = new THREE.AmbientLight(0xffffff, 2);
       scene.add(ambientLight);
 
       let monModele;
@@ -85,8 +85,9 @@
       function animate() {
         if (monModele) {
           monModele.rotation.y += 0.01;
-          monModele.rotation.x += 0.005;
-          monModele.rotation.z += 0.005;
+          monModele.rotation.x += 0.01;
+          monModele.rotation.z += 0.01;
+
         }
         renderer.render(scene, camera);
       }
