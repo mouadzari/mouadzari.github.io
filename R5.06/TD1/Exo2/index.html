@@ -1,19 +1,199 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8">
+  <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TD 1 - Exo 2</title>
-  <link rel="stylesheet" href="../../../common.css">
+  <title>TP2 | Leaflet</title>
+  <link rel="stylesheet" href="../common.css">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css"
+    integrity="sha512-xodZBNTC5n17Xt2atTPuE1HxjVMSvLVW9ocqUKLsCC5CXdbqCmblAshOMAS6/keqq/sMZMZ19scR4PsZChSR7A=="
+    crossorigin="" />
+  <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"
+    integrity="sha512-XQoYMqMTK8LvdxXYG3nZ448hOEQiglfqkJs1NOQV44cWnUrBc8PkAOcXy20w0vlaXaVUearIOBhiXZ5V3ynxwA=="
+    crossorigin=""></script>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f5f5f5;
+      color: #222;
+    }
+
+    #mapid {
+      height: 100vh;
+      width: 100vw;
+    }
+
+    nav {
+      position: fixed;
+      left: 16px;
+      bottom: 16px;
+      z-index: 1000;
+    }
+
+    nav a {
+      display: inline-block;
+      padding: 10px 14px;
+      border-radius: 8px;
+      color: #1f4e79;
+      background: #fff;
+      border: 1px solid #d0d0d0;
+      text-decoration: none;
+    }
+
+    .info {
+      position: fixed;
+      top: 16px;
+      left: 16px;
+      z-index: 1000;
+      padding: 12px 14px;
+      border-radius: 8px;
+      background: #fff;
+      border: 1px solid #d9d9d9;
+      font-size: 14px;
+      line-height: 1.4;
+      color: #333;
+    }
+  </style>
 </head>
 <body>
-  <div class="card">
-    <h1>TD 1 - Exo 2</h1>
-    <h2>Document de travail</h2>
-    <p>Ajoutez ici votre document ou votre solution.</p>
-  </div>
+  <div id="mapid"></div>
+  <div class="info" id="status">En attente de la géolocalisation...</div>
+
   <nav>
-    <a href="../../../index.html">Accueil</a>
+    <a href="../index.html">Retour</a>
   </nav>
+
+  <script>
+    const statusElement = document.getElementById('status');
+    const marseille = L.latLng(43.2965, 5.3698);
+    const nice = L.latLng(43.7102, 7.2620);
+    const bermudaTriangle = [
+      [32.259265, -64.857788],
+      [25.777634, -80.183716],
+      [18.448347, -66.104736]
+    ];
+    const niceGeoJsonUrl = 'https://geo.api.gouv.fr/communes/06088?geometry=contour&format=geojson';
+
+    const map = L.map('mapid', { zoomControl: true }).setView(nice, 7);
+
+    L.tileLayer('https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}{r}.png?api_key=eed6a6b4-d171-43e4-8215-e5f8490b4245', {
+      maxZoom: 18,
+      attribution: '&copy; OpenStreetMap contributors &copy; Stadia Maps &copy; Stamen Design'
+    }).addTo(map);
+
+    L.marker(nice).addTo(map).bindPopup('Nice');
+    L.marker(marseille).addTo(map).bindPopup('Marseille');
+
+
+    L.polyline([marseille, nice], {
+      color: '#f59e0b',
+      weight: 3,
+      dashArray: '8, 8'
+    }).addTo(map).bindPopup('Segment Marseille - Nice');
+
+    L.polygon(bermudaTriangle, {
+      color: 'red',
+      fillColor: '#f03',
+      fillOpacity: 0.2,
+      weight: 2
+    }).addTo(map).bindPopup('Triangle des Bermudes');
+
+    let userMarker = null;
+    let userCircle = null;
+
+    function toRadians(value) {
+      return value * Math.PI / 180;
+    }
+
+    function distanceGreatCircle(first, second) {
+      const earthRadius = 6371000;
+      const deltaLatitude = toRadians(second.lat - first.lat);
+      const deltaLongitude = toRadians(second.lng - first.lng);
+      const latitude1 = toRadians(first.lat);
+      const latitude2 = toRadians(second.lat);
+
+      const a = Math.sin(deltaLatitude / 2) ** 2
+        + Math.cos(latitude1) * Math.cos(latitude2) * Math.sin(deltaLongitude / 2) ** 2;
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+      return earthRadius * c;
+    }
+
+   
+
+    function setStatus(message) {
+      statusElement.textContent = message;
+    }
+
+    function updateUserLayer(position) {
+      const latitude = position.coords.latitude;
+      const longitude = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+      const current = L.latLng(latitude, longitude);
+      const distanceToMarseille = distanceGreatCircle(marseille, current);
+
+      setStatus(`Votre position : ${latitude.toFixed(6)}, ${longitude.toFixed(6)} | Distance Marseille : ${distanceToMarseille.toFixed(0)} m`);
+
+      if (!userMarker) {
+        userMarker = L.marker(current).addTo(map).bindPopup('Votre position');
+        userCircle = L.circle(current, {
+          color: '#4ade80',
+          fillColor: '#4ade80',
+          fillOpacity: 0.12,
+          radius: accuracy
+        }).addTo(map).bindPopup(`Précision estimée : ${accuracy.toFixed(0)} m`);
+        map.setView(current, 12);
+      } else {
+        userMarker.setLatLng(current);
+        userCircle.setLatLng(current).setRadius(accuracy);
+        map.setView(current, map.getZoom());
+      }
+
+      userMarker.openPopup();
+      userCircle.setPopupContent(`Précision estimée : ${accuracy.toFixed(0)} m`);
+    }
+
+    function onError(error) {
+      setStatus(`Géolocalisation impossible : ${error.message}`);
+    }
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(updateUserLayer, onError, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 0
+      });
+    } else {
+      onError(new Error('Géolocalisation non supportée par ce navigateur'));
+    }
+
+    async function addGeoJsonLayer() {
+        try {
+            const response = await fetch(niceGeoJsonUrl);
+            if (!response.ok) {
+            throw new Error(`HTTP ${response.status}`);
+            }
+
+            const geojson = await response.json();
+            L.geoJSON(geojson, {
+            style: {
+                color: '#FF0000',
+                weight: 1.5,
+                fillColor: '#FF0000',
+            }
+            }).addTo(map).bindPopup('Contour GeoJSON de Nice');
+        } catch (error) {
+            console.warn('GeoJSON non charge:', error);
+        }
+        }
+
+    addGeoJsonLayer();
+
+
+
+
+
+  </script>
 </body>
 </html>
