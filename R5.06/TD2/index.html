@@ -1,20 +1,97 @@
 <!DOCTYPE html>
 <html lang="fr">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>TD 2</title>
-  <link rel="stylesheet" href="../../common.css">
-</head>
-<body>
-  <h1>TD 2</h1>
-  <div class="card-grid">
-    <div class="card"><a href="Exo1/index.html">Exo 1</a></div>
-    <div class="card"><a href="Exo2/index.html">Exo 2</a></div>
-    <div class="card"><a href="Exo3/index.html">Exo 3</a></div>
-  </div>
-  <nav>
-    <a href="../../index.html">Accueil</a>
-  </nav>
-</body>
+  <head>
+    <meta charset="UTF-8">
+    <title>Three.js - Modèle 3D et Capteurs</title>
+    <style>
+      html, body {
+        margin: 0;
+        padding: 0;
+        overflow: hidden;
+      }
+    </style>
+  </head>
+
+  <body>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://cdn.jsdelivr.net/npm/three@0.164.0/build/three.module.js",
+          "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.164.0/examples/jsm/"
+        }
+      }
+    </script>
+
+    <script type="module">
+      import * as THREE from 'three';
+      import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+
+      const scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x111111);
+      scene.fog = new THREE.Fog(0x111111, 2, 15);
+
+      const camera = new THREE.PerspectiveCamera(
+        75,
+        window.innerWidth / window.innerHeight,
+        0.1,
+        1000
+      );
+      camera.position.z = 5;
+
+      const renderer = new THREE.WebGLRenderer({ antialias: true });
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+
+      const light = new THREE.DirectionalLight(0xffffff, 2);
+      light.position.set(2, 2, 5);
+      scene.add(light);
+      
+      const ambientLight = new THREE.AmbientLight(0xffffff, 1.5);
+      scene.add(ambientLight);
+
+      let monModele;
+      const loader = new GLTFLoader();
+
+      loader.load(
+          'https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/main/2.0/DamagedHelmet/glTF/DamagedHelmet.gltf',
+           function (gltf) {
+          monModele = gltf.scene;
+          monModele.position.y = -1;
+          scene.add(monModele);
+        },
+        undefined,
+        function (error) {
+          console.error('Erreur lors du chargement:', error);
+        }
+      );
+
+      window.addEventListener('deviceorientation', function(event) {
+        if (monModele) {
+          const beta = event.beta ? THREE.MathUtils.degToRad(event.beta) : 0; 
+          const gamma = event.gamma ? THREE.MathUtils.degToRad(event.gamma) : 0;
+          const alpha = event.alpha ? THREE.MathUtils.degToRad(event.alpha) : 0;
+
+          monModele.rotation.set(beta, gamma, alpha);
+        }
+      });
+
+      window.addEventListener('resize', onWindowResize, false);
+      function onWindowResize() {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+      }
+
+      function animate() {
+        if (monModele) {
+          monModele.rotation.y += 0.01;
+          monModele.rotation.x += 0.005;
+          monModele.rotation.z += 0.005;
+        }
+        renderer.render(scene, camera);
+      }
+
+      renderer.setAnimationLoop(animate);
+    </script>
+  </body>
 </html>
