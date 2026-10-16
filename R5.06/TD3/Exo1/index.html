@@ -3,14 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <title>Géolocalisation et 3D</title>
-    <style>body { margin: 0; overflow: hidden; }</style>
     <script type="importmap">
-    {
-        "imports": {
-            "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
-            "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/"
-        }
-    }
+    {"imports":{"three":"https://unpkg.com/three@0.158.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.158.0/examples/jsm/"}}
     </script>
 </head>
 <body>
@@ -19,69 +13,117 @@
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 100);
+        const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
         camera.position.z = 3;
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
-        renderer.setPixelRatio(window.devicePixelRatio);
-        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(devicePixelRatio);
+        renderer.setSize(innerWidth, innerHeight);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        document.body.style.margin = '0';
+        document.body.style.overflow = 'hidden';
         document.body.appendChild(renderer.domElement);
 
-        scene.add(new THREE.AmbientLight(0xffffff, 1.0));
-        const sun = new THREE.DirectionalLight(0xffffff, 1.5);  
+        scene.add(new THREE.AmbientLight(0xffffff, 1));
+        const sun = new THREE.DirectionalLight(0xffffff, 1.5);
         sun.position.set(5, 3, 5);
         scene.add(sun);
 
         const controls = new OrbitControls(camera, renderer.domElement);
-        controls.minDistance = 1.3;
+        controls.minDistance = 1.35;
         controls.maxDistance = 6;
 
         const textureLoader = new THREE.TextureLoader();
         textureLoader.setCrossOrigin('anonymous');
-
         const earthTexture = textureLoader.load('https://unpkg.com/three-globe/example/img/earth-blue-marble.jpg');
-        earthTexture.colorSpace = THREE.SRGBColorSpace;        
-
+        earthTexture.colorSpace = THREE.SRGBColorSpace;
         const earth = new THREE.Mesh(
             new THREE.SphereGeometry(1, 64, 64),
-            new THREE.MeshStandardMaterial({ map: earthTexture })
+            new THREE.MeshStandardMaterial({ map: earthTexture, roughness: 0.9 })
         );
         scene.add(earth);
 
-
-        function latLonToCartesian(lat, lon, radius) {
-            const phi = (90 - lat) * (Math.PI / 180);
-            const theta = (lon + 180) * (Math.PI / 180);
-
-            const x = -(radius * Math.sin(phi) * Math.cos(theta));
-            const y = radius * Math.cos(phi);
-            const z = radius * Math.sin(phi) * Math.sin(theta);
-
-            return new THREE.Vector3(x, y, z);
+        function latLonToCartesian(latitude, longitude, radius) {
+            const latitudeRadians = THREE.MathUtils.degToRad(latitude);
+            const longitudeRadians = THREE.MathUtils.degToRad(longitude);
+            return new THREE.Vector3(
+                radius * Math.cos(latitudeRadians) * Math.cos(longitudeRadians),
+                radius * Math.sin(latitudeRadians),
+                -radius * Math.cos(latitudeRadians) * Math.sin(longitudeRadians)
+            );
         }
 
-        function addUserMarker(lat, lon) {
-            const userMarker = new THREE.Mesh(
-                new THREE.SphereGeometry(0.03, 16, 16),
+        const markerGroup = new THREE.Group();
+        earth.add(markerGroup);
+        const rotatingFlags = [];
+
+        function addUserMarker(latitude, longitude) {
+            const position = latLonToCartesian(latitude, longitude, 1.025);
+            const marker = new THREE.Mesh(
+                new THREE.SphereGeometry(0.01, 16, 16),
                 new THREE.MeshBasicMaterial({ color: 0xff0000 })
             );
-            userMarker.position.copy(latLonToCartesian(lat, lon, 1.02));
-            earth.add(userMarker);
+            marker.position.copy(position);
+            markerGroup.add(marker);
+        }
+
+        function addFlagMarker(country) {
+            if (!country.latlng || country.latlng.length < 2 || !country.flags?.png) return;
+            const position = latLonToCartesian(country.latlng[0], country.latlng[1], 1.05);
+            const flagTexture = textureLoader.load(country.flags.png);
+            flagTexture.colorSpace = THREE.SRGBColorSpace;
+            const flagMaterials = Array.from({ length: 6 }, () => new THREE.MeshBasicMaterial({ map: flagTexture }));
+            const flag = new THREE.Mesh(
+                new THREE.BoxGeometry(0.01, 0.01, 0.01),
+                flagMaterials
+            );
+            flag.position.copy(position);
+            flag.lookAt(new THREE.Vector3(0, 0, 0));
+            markerGroup.add(flag);
+            rotatingFlags.push(flag);
+        }
+
+        async function loadCountries() {
+            try {
+                const response = await fetch('https://raw.githubusercontent.com/mledoze/countries/master/countries.json');
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const countries = (await response.json())
+                    .filter(country => country.latlng?.length === 2 && country.cca2)
+                    .map(country => ({
+                        ...country,
+                        flags: { png: `https://flagcdn.com/w160/${country.cca2.toLowerCase()}.png` }
+                    }))
+                    .sort((first, second) => first.name.common.localeCompare(second.name.common));
+                countries.forEach(addFlagMarker);
+            } catch (error) {
+                console.error('Impossible de charger les pays :', error);
+            }
         }
 
         if ('geolocation' in navigator) {
             navigator.geolocation.getCurrentPosition(
                 position => addUserMarker(position.coords.latitude, position.coords.longitude),
-                error => {
-                    console.warn('Géolocalisation refusée/indisponible :', error.message);
-                    addUserMarker(48.8566, 2.3522);                 // repli : Paris
-                }
+                error => console.warn('Géolocalisation refusée ou indisponible :', error.message),
+                { enableHighAccuracy: true, timeout: 10000 }
             );
         }
-        
+
+        loadCountries();
+
+        addEventListener('resize', () => {
+            camera.aspect = innerWidth / innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(innerWidth, innerHeight);
+        });
+
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
+            rotatingFlags.forEach(flag => {
+                flag.rotation.y += 0.02;
+                flag.rotation.z += 0.02;
+                flag.rotation.x += 0.02;
+            });
             renderer.render(scene, camera);
         }
         animate();
