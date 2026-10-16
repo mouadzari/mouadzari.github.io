@@ -3,11 +3,19 @@
 <head>
     <meta charset="UTF-8">
     <title>Géolocalisation et 3D</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script type="importmap">
     {"imports":{"three":"https://unpkg.com/three@0.158.0/build/three.module.js","three/addons/":"https://unpkg.com/three@0.158.0/examples/jsm/"}}
     </script>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        #map { position: absolute; top: 0; right: 0; width: 35%; height: 100vh; z-index: 1; }
+        canvas { display: block; width: 65% !important; }
+    </style>
 </head>
 <body>
+    <div id="map"></div>
     <nav>
         <a href="../../">R5.06</a>
         <a href="../../../">Accueil</a>
@@ -17,16 +25,20 @@
         import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 
         const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(45, innerWidth / innerHeight, 0.1, 100);
+        const camera = new THREE.PerspectiveCamera(45, (innerWidth * 0.65) / innerHeight, 0.1, 100);
         camera.position.z = 3;
 
         const renderer = new THREE.WebGLRenderer({ antialias: true });
         renderer.setPixelRatio(devicePixelRatio);
-        renderer.setSize(innerWidth, innerHeight);
+        renderer.setSize(innerWidth * 0.65, innerHeight);
         renderer.outputColorSpace = THREE.SRGBColorSpace;
-        document.body.style.margin = '0';
-        document.body.style.overflow = 'hidden';
         document.body.appendChild(renderer.domElement);
+
+        const map = L.map('map').setView([0, 0], 2);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap contributors'
+        }).addTo(map);
+        let selectedMapMarker;
 
         scene.add(new THREE.AmbientLight(0xffffff, 1));
         const sun = new THREE.DirectionalLight(0xffffff, 1.5);
@@ -60,6 +72,45 @@
         const markerGroup = new THREE.Group();
         earth.add(markerGroup);
         const rotatingFlags = [];
+        let selectedGlobeMarker;
+        const raycaster = new THREE.Raycaster();
+        const pointer = new THREE.Vector2();
+        let globePress;
+
+        renderer.domElement.addEventListener('pointerdown', event => {
+            globePress = { time: performance.now(), x: event.clientX, y: event.clientY };
+        });
+
+        renderer.domElement.addEventListener('pointerup', event => {
+            if (!globePress) return;
+            const distance = Math.hypot(event.clientX - globePress.x, event.clientY - globePress.y);
+            globePress.isClick = performance.now() - globePress.time < 300 && distance < 5;
+        });
+
+        renderer.domElement.addEventListener('pointercancel', () => {
+            globePress = null;
+        });
+
+        function focusEarth(latitude, longitude) {
+            const position = latLonToCartesian(latitude, longitude, 1).normalize();
+            earth.quaternion.setFromUnitVectors(position, new THREE.Vector3(0, 0, 1));
+        }
+
+        function selectLocation(latitude, longitude) {
+            focusEarth(latitude, longitude);
+
+            if (selectedMapMarker) map.removeLayer(selectedMapMarker);
+            selectedMapMarker = L.marker([latitude, longitude]).addTo(map);
+            selectedMapMarker.on('click', () => selectLocation(latitude, longitude));
+
+            if (selectedGlobeMarker) markerGroup.remove(selectedGlobeMarker);
+            selectedGlobeMarker = new THREE.Mesh(
+                new THREE.SphereGeometry(0.016, 16, 16),
+                new THREE.MeshBasicMaterial({ color: 0xffff00 })
+            );
+            selectedGlobeMarker.position.copy(latLonToCartesian(latitude, longitude, 1.04));
+            markerGroup.add(selectedGlobeMarker);
+        }
 
         function addUserMarker(latitude, longitude) {
             const position = latLonToCartesian(latitude, longitude, 1.025);
@@ -83,6 +134,7 @@
             );
             flag.position.copy(position);
             flag.lookAt(new THREE.Vector3(0, 0, 0));
+            flag.userData.country = country;
             markerGroup.add(flag);
             rotatingFlags.push(flag);
         }
@@ -114,10 +166,43 @@
 
         loadCountries();
 
+        map.on('click', event => {
+            selectLocation(event.latlng.lat, event.latlng.lng);
+        });
+
+        renderer.domElement.addEventListener('click', event => {
+            if (!globePress?.isClick) {
+                globePress = null;
+                return;
+            }
+            globePress = null;
+            const bounds = renderer.domElement.getBoundingClientRect();
+            pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
+            pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
+            raycaster.setFromCamera(pointer, camera);
+            const intersections = raycaster.intersectObjects(rotatingFlags);
+            const country = intersections[0]?.object.userData.country;
+            if (country) {
+                selectLocation(country.latlng[0], country.latlng[1]);
+                map.setView(country.latlng, 4);
+                return;
+            }
+
+            const earthIntersection = raycaster.intersectObject(earth)[0];
+            if (earthIntersection) {
+                const position = earth.worldToLocal(earthIntersection.point.clone()).normalize();
+                const latitude = THREE.MathUtils.radToDeg(Math.asin(position.y));
+                const longitude = THREE.MathUtils.radToDeg(Math.atan2(-position.z, position.x));
+                selectLocation(latitude, longitude);
+                map.setView([latitude, longitude], 4);
+            }
+        });
+
         addEventListener('resize', () => {
-            camera.aspect = innerWidth / innerHeight;
+            camera.aspect = (innerWidth * 0.65) / innerHeight;
             camera.updateProjectionMatrix();
-            renderer.setSize(innerWidth, innerHeight);
+            renderer.setSize(innerWidth * 0.65, innerHeight);
+            map.invalidateSize();
         });
 
         function animate() {
