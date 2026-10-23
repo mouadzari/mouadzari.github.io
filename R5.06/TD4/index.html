@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="claude:viewport-fit-sides" content="cover">
+<title>Monument Atlas</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="css/leaflet.css">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div id="stage"></div>
+<div id="labels"></div>
+
+<header id="brand">
+  <h1>Monument <span>Atlas</span></h1>
+  <div id="readout">—</div>
+</header>
+
+<nav id="toolbar" aria-label="Globe controls">
+  <button class="tool" id="btnTour" aria-pressed="false" title="Fly through every monument (T)"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M4 2.5v11l9-5.5z"/></svg>Tour</button>
+  <button class="tool" id="btnQuiz" aria-pressed="false" title="Geo-guessing quiz (Q)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.2"/></svg>Quiz</button>
+  <button class="tool" id="btnRotate" aria-pressed="true" title="Auto-rotate (R)"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg>Spin</button>
+  <button class="tool" id="btnLocate" aria-pressed="false" title="Show distances from where you are"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="2.5"/><path d="M8 1v3M8 12v3M1 8h3M12 8h3"/></svg>Locate me</button>
+</nav>
+
+<aside id="side" class="panel" aria-label="Monument index">
+  <div class="tabs" role="tablist">
+    <button role="tab" id="tabIndex" aria-selected="true">Index</button>
+    <button role="tab" id="tabSky" aria-selected="false">Skyline</button>
+  </div>
+  <div class="side-body" id="paneIndex">
+    <div class="filters">
+      <input id="search" type="search" placeholder="Search monument, city, country" autocomplete="off">
+      <div class="chips" id="chips"></div>
+      <div class="sortrow"><span id="count">32 monuments</span><button id="sortBtn" hidden>Nearest first</button></div>
+    </div>
+    <ul id="list"></ul>
+  </div>
+  <div class="side-body" id="paneSky" hidden>
+    <div id="skyline"></div>
+  </div>
+</aside>
+
+<article id="card" class="panel" hidden aria-live="polite">
+  <button id="cHandle" aria-label="Show details"></button>
+  <div id="tourbar"><i></i></div>
+  <button class="close" id="cardClose" aria-label="Close"><svg width="12" height="12" viewBox="0 0 12 12" stroke="currentColor" stroke-width="1.6"><path d="M2 2l8 8M10 2l-8 8"/></svg></button>
+  <div class="eyebrow" id="cEyebrow"></div>
+  <h2 id="cName"></h2>
+  <div class="clock" id="cClock"></div>
+  <dl class="facts" id="cFacts"></dl>
+  <p class="desc" id="cDesc"></p>
+  <div class="didyou" id="cFact"></div>
+  <div class="card-actions">
+    <button class="btn" id="cPrev" aria-label="Previous monument">← Prev</button>
+    <button class="btn" id="cNext" aria-label="Next monument">Next →</button>
+    <button class="btn" id="cView">Globe view</button>
+    <a class="btn" id="cWiki" target="_blank" rel="noopener">Wikipedia ↗</a>
+  </div>
+  <div id="ask">
+    <label for="askInput">Ask the guide</label>
+    <form id="askForm"><input id="askInput" placeholder="Why is it leaning? Who paid for it?" autocomplete="off"><button class="btn primary" type="submit" id="askBtn">Ask</button></form>
+    <p id="askOut"></p>
+  </div>
+</article>
+
+<section id="mini" class="panel" aria-label="Flat map">
+  <div id="minimap"></div>
+  <span class="lbl">Flat map</span>
+  <button id="tilesBtn" aria-pressed="false" title="Street map tiles (needs internet access)">Tiles</button>
+</section>
+
+<section id="sun" class="panel" aria-label="Sun position">
+  <div class="t" id="sunTime">--:-- UTC<small>SUN</small></div>
+  <input id="timeRange" type="range" min="-12" max="12" step="0.25" value="0" aria-label="Shift time of day">
+  <button id="liveBtn" aria-pressed="true">Live</button>
+</section>
+<div class="kbd"><span>←</span><span>→</span> browse · <span>T</span> tour · <span>Q</span> quiz · <span>R</span> spin</div>
+
+<div id="mtop">
+  <button class="round" id="mSun" aria-pressed="false" aria-label="Time of day"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="3.6"/><path d="M10 1.5v2.2M10 16.3v2.2M1.5 10h2.2M16.3 10h2.2M4 4l1.6 1.6M14.4 14.4L16 16M4 16l1.6-1.6M14.4 5.6L16 4"/></svg></button>
+  <button class="round" id="mSpin" aria-pressed="true" aria-label="Auto-rotate"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v3h-3"/></svg></button>
+</div>
+<div id="scrim"></div>
+<nav id="mnav" aria-label="Sections">
+  <button id="mIndex" aria-pressed="false"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M3 5h14M3 10h14M3 15h9"/></svg>Index</button>
+  <button id="mMap" aria-pressed="false"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M2.5 5l5-2 5 2 5-2v12l-5 2-5-2-5 2z"/><path d="M7.5 3v12M12.5 5v12"/></svg>Map</button>
+  <button id="mTour" aria-pressed="false"><svg viewBox="0 0 20 20" fill="currentColor"><path d="M6 3.5v13l10.5-6.5z"/></svg>Tour</button>
+  <button id="mQuiz" aria-pressed="false"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="7.5"/><circle cx="10" cy="10" r="2.8"/></svg>Quiz</button>
+  <button id="mLocate" aria-pressed="false"><svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="10" cy="10" r="3"/><path d="M10 1.5v3.5M10 15v3.5M1.5 10H5M15 10h3.5"/></svg>Me</button>
+</nav>
+<section id="quiz" class="panel" hidden aria-live="polite"></section>
+<div id="tip" hidden></div>
+<div id="toast" hidden></div>
+<div id="loader"><div>Drawing coastlines…</div></div>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/utils/BufferGeometryUtils.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.js"></script>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>
